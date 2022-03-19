@@ -31,6 +31,9 @@ from backtrader.metabase import MetaParams
 from backtrader.utils.py3 import with_metaclass
 from ccxt.base.errors import NetworkError, ExchangeError
 
+from backtrader import logger
+log = logger.get_logger(__name__)
+
 
 class MetaSingleton(MetaParams):
     '''Metaclass to make a metaclassed class a singleton'''
@@ -140,7 +143,7 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
         def retry_method(self, *args, **kwargs):
             for i in range(self.retries):
                 if self.debug:
-                    print('{} - {} - Attempt {}'.format(datetime.now(), method.__name__, i))
+                    log.debug('{} - {} - Attempt {}'.format(datetime.now(), method.__name__, i))
                 time.sleep(self.exchange.rateLimit / 1000)
                 try:
                     return method(self, *args, **kwargs)
@@ -187,7 +190,7 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
     @retry
     def fetch_ohlcv(self, symbol, timeframe, since, limit, params={}):
         if self.debug:
-            print('Fetching: {}, TF: {}, Since: {}, Limit: {}'.format(symbol, timeframe, since, limit))
+            log.debug('Fetching: {}, TF: {}, Since: {}, Limit: {}'.format(symbol, timeframe, since, limit))
         return self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit, params=params)
 
     @retry

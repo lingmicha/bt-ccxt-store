@@ -30,6 +30,8 @@ from backtrader.utils.py3 import queue, with_metaclass
 
 from .ccxtstore import CCXTStore
 
+from backtrader import logger
+log = logger.get_logger(__name__)
 
 class CCXTOrder(OrderBase):
     def __init__(self, owner, data, ccxt_order):
@@ -189,7 +191,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
     def next(self):
         if self.debug:
-            print('Broker next() called')
+            log.debug('Broker next() called')
 
         for o_order in list(self.open_orders):
             oID = o_order.ccxt_order['id']
@@ -197,7 +199,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
             # Print debug before fetching so we know which order is giving an
             # issue if it crashes
             if self.debug:
-                print('Fetching Order ID: {}'.format(oID))
+                log.debug('Fetching Order ID: {}'.format(oID))
 
             # Get the order
             ccxt_order = self.store.fetch_order(oID, o_order.data.p.dataname)
@@ -214,7 +216,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
                         o_order.executed_fills.append(fill['id'])
 
             if self.debug:
-                print(json.dumps(ccxt_order, indent=self.indent))
+                log.debug(json.dumps(ccxt_order, indent=self.indent))
 
             # Check if the order is closed
             if ccxt_order[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
@@ -246,7 +248,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         else:
             try:
                 # all params are exchange specific: https://github.com/ccxt/ccxt/wiki/Manual#custom-order-params
-                params['created'] = created  # Add timestamp of order creation for backtesting
+                params['clientOrderId'] = created  # Add timestamp of order creation for backtesting
                 ret_ord = self.store.create_order(symbol=data.p.dataname, order_type=order_type, side=side,
                                                   amount=amount, price=price, params=params)
             except:
@@ -254,10 +256,41 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
                 self.use_order_params = False
                 return None
 
-        _order = self.store.fetch_order(ret_ord['id'], data.p.dataname)
+        # bug fix: there is a chance create_order returned with a closed order,\
+        # or open order with trades, re-fetch order may lose trades \
+        # old way:
+        # _order = self.store.fetch_order(ret_ord['id'], data.p.dataname)
+        # order = CCXTOrder(owner, data, _order)
 
-        order = CCXTOrder(owner, data, _order)
+        # new way:
+        order = CCXTOrder(owner, data, ret_ord)
         order.price = ret_ord['price']
+        order.dt = ret_ord['datetime']
+
+        # Check for new fills
+        if 'trades' in ret_ord and ret_ord['trades'] is not None:
+            for fill in ret_ord['trades']:
+                if fill not in order.executed_fills:
+                    order.execute(fill['datetime'], fill['amount'], fill['price'],
+                                    0, 0.0, 0.0,
+                                    0, 0.0, 0.0,
+                                    0.0, 0.0,
+                                    0, 0.0)
+                    order.executed_fills.append(fill['id'])
+
+        if self.debug:
+            log.debug(json.dumps(ret_ord, indent=self.indent))
+
+        # Check if the order is closed
+        if ret_ord[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
+            pos = self.getposition(order.data, clone=False)
+            pos.update(order.size, order.price)
+            order.completed()
+            self.notify(order)
+            self.get_balance()
+            return order # this order is not added into open order queue
+
+        # if not closd, add into open order queue
         self.open_orders.append(order)
 
         self.notify(order)
@@ -284,15 +317,15 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         oID = order.ccxt_order['id']
 
         if self.debug:
-            print('Broker cancel() called')
-            print('Fetching Order ID: {}'.format(oID))
+            log.debug('Broker cancel() called')
+            log.debug('Fetching Order ID: {}'.format(oID))
 
         # check first if the order has already been filled otherwise an error
         # might be raised if we try to cancel an order that is not open.
         ccxt_order = self.store.fetch_order(oID, order.data.p.dataname)
 
         if self.debug:
-            print(json.dumps(ccxt_order, indent=self.indent))
+            log.debug(json.dumps(ccxt_order, indent=self.indent))
 
         if ccxt_order[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
             return order
@@ -300,9 +333,9 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         ccxt_order = self.store.cancel_order(oID, order.data.p.dataname)
 
         if self.debug:
-            print(json.dumps(ccxt_order, indent=self.indent))
-            print('Value Received: {}'.format(ccxt_order[self.mappings['canceled_order']['key']]))
-            print('Value Expected: {}'.format(self.mappings['canceled_order']['value']))
+            log.debug(json.dumps(ccxt_order, indent=self.indent))
+            log.debug('Value Received: {}'.format(ccxt_order[self.mappings['canceled_order']['key']]))
+            log.debug('Value Expected: {}'.format(self.mappings['canceled_order']['value']))
 
         if ccxt_order[self.mappings['canceled_order']['key']] == self.mappings['canceled_order']['value']:
             self.open_orders.remove(order)
