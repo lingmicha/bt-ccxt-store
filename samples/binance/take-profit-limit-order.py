@@ -49,7 +49,7 @@ class TestStrategy(bt.Strategy):
 
 # absolute dir the script is in
 script_dir = os.path.dirname(__file__)
-abs_file_path = os.path.join(script_dir, '../params.json')
+abs_file_path = os.path.join(script_dir, '../params-sandbox.json')
 with open(abs_file_path, 'r') as f:
     params = json.load(f)
 
@@ -67,7 +67,7 @@ config = {'apiKey': params["binance"]["apikey"],
           'nonce': lambda: str(int(time.time() * 1000)),
           }
 
-store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=True)
+store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=True, sandbox=True)
 
 
 # Get the broker and pass any kwargs if needed.
@@ -88,8 +88,8 @@ broker_mapping = {
             'value':'closed'
         },
         'canceled_order':{
-            'key': 'result',
-            'value':1}
+            'key': 'status',
+            'value':'canceled'}
     }
 }
 

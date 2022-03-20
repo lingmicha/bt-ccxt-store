@@ -25,7 +25,7 @@ class TestStrategy(bt.Strategy):
             # make sure you use a price that is below the market price if you don't want to actually buy
             self.order = self.buy(size=2.0, exectype=Order.Limit, price=5.4326)
             # And immediately cancel the buy order
-            self.cancel(self.order);
+            self.cancel(self.order); # very likely this would fail or buy would be filtered
             self.bought = True
 
         for data in self.datas:
@@ -64,7 +64,7 @@ config = {'apiKey': params["binance"]["apikey"],
           'nonce': lambda: str(int(time.time() * 1000)),
           }
 
-store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=True)
+store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=True, sandbox=True)
 
 # Get the broker and pass any kwargs if needed.
 # ----------------------------------------------

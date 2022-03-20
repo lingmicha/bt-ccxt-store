@@ -41,7 +41,7 @@ class TestStrategy(bt.Strategy):
         else:
             self.live_data = False
 
-with open('./samples/params.json', 'r') as f:
+with open('./samples/params-sandbox.json', 'r') as f:
     params = json.load(f)
 
 cerebro = bt.Cerebro(quicknotify=True)
@@ -60,7 +60,7 @@ config = {'apiKey': params["binance"]["apikey"],
 # IMPORTANT NOTE - Kraken (and some other exchanges) will not return any values
 # for get cash or value if You have never held any BNB coins in your account.
 # So switch BNB to a coin you have funded previously if you get errors
-store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=False)
+store = CCXTStore(exchange='binance', currency='BNB', config=config, retries=5, debug=True,sandbox=True)
 
 
 # Get the broker and pass any kwargs if needed.
@@ -81,8 +81,8 @@ broker_mapping = {
             'value':'closed'
         },
         'canceled_order':{
-            'key': 'result',
-            'value':1}
+            'key': 'status',
+            'value':'canceled'}
     }
 }
 
