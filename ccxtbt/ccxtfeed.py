@@ -34,6 +34,7 @@ from .ccxtstore import CCXTStore
 
 from backtrader import logger
 log = logger.get_logger(__name__)
+log.setLevel(logging.INFO)
 
 class MetaCCXTFeed(DataBase.__class__):
     def __init__(cls, name, bases, dct):
