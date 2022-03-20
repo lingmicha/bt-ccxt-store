@@ -246,7 +246,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         else:
             try:
                 # all params are exchange specific: https://github.com/ccxt/ccxt/wiki/Manual#custom-order-params
-                params['created'] = created  # Add timestamp of order creation for backtesting
+                params['clientOrderId'] = created  # Add timestamp of order creation for backtesting
                 ret_ord = self.store.create_order(symbol=data.p.dataname, order_type=order_type, side=side,
                                                   amount=amount, price=price, params=params)
             except:
@@ -254,10 +254,41 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
                 self.use_order_params = False
                 return None
 
-        _order = self.store.fetch_order(ret_ord['id'], data.p.dataname)
+        # bug fix: there is a chance create_order returned with a closed order,\
+        # or open order with trades, re-fetch order may lose trades \
+        # old way:
+        # _order = self.store.fetch_order(ret_ord['id'], data.p.dataname)
+        # order = CCXTOrder(owner, data, _order)
 
-        order = CCXTOrder(owner, data, _order)
+        # new way:
+        order = CCXTOrder(owner, data, ret_ord)
         order.price = ret_ord['price']
+        order.dt = ret_ord['datetime']
+
+        # Check for new fills
+        if 'trades' in ret_ord and ret_ord['trades'] is not None:
+            for fill in ret_ord['trades']:
+                if fill not in order.executed_fills:
+                    order.execute(fill['datetime'], fill['amount'], fill['price'],
+                                    0, 0.0, 0.0,
+                                    0, 0.0, 0.0,
+                                    0.0, 0.0,
+                                    0, 0.0)
+                    order.executed_fills.append(fill['id'])
+
+        if self.debug:
+            log.debug(json.dumps(ret_ord, indent=self.indent))
+
+        # Check if the order is closed
+        if ret_ord[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
+            pos = self.getposition(order.data, clone=False)
+            pos.update(order.size, order.price)
+            order.completed()
+            self.notify(order)
+            self.get_balance()
+            return order # this order is not added into open order queue
+
+        # if not closd, add into open order queue
         self.open_orders.append(order)
 
         self.notify(order)

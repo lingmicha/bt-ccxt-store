@@ -67,11 +67,11 @@ class CCXTFeed(with_metaclass(MetaCCXTFeed, DataBase)):
 
     params = (
         ('historical', False),  # only historical download
-        ('backfill_start', False),  # do backfilling at the start
+        ('backfill_start', True),  # do backfilling at the start
         ('fetch_ohlcv_params', {}),
         ('ohlcv_limit', 20),
         ('drop_newest', False),
-        ('debug', False)
+        ('debug', True)
     )
 
     _store = CCXTStore
@@ -195,6 +195,10 @@ class CCXTFeed(with_metaclass(MetaCCXTFeed, DataBase)):
                     self._data.append(ohlcv)
                     self._last_ts = tstamp
 
+            # update since to position new batch
+            since = self._last_ts
+
+            # only break when all candles are read, including the last candle
             if dlen == len(self._data):
                 break
 
