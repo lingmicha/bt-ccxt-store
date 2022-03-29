@@ -139,7 +139,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         self.startingcash = self.store._cash
         self.startingvalue = self.store._value
 
-        self.use_order_params = True
+        self.use_order_params = False
 
     def get_balance(self):
         self.store.get_balance()
@@ -218,6 +218,18 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
             # Check if the order is closed
             if ccxt_order[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
+
+                """
+                futures trading doesn't return trades inside orders, 
+                so update order execution in one run
+                """
+                if self.store.get_type() == 'future':
+                    o_order.execute(ccxt_order['datetime'], ccxt_order['amount'], ccxt_order['price'],
+                                    0, 0.0, 0.0,
+                                    0, 0.0, 0.0,
+                                    0.0, 0.0,
+                                    0, 0.0)
+
                 pos = self.getposition(o_order.data, clone=False)
                 pos.update(o_order.size, o_order.price)
                 o_order.completed()
@@ -281,6 +293,18 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
         # Check if the order is closed
         if ret_ord[self.mappings['closed_order']['key']] == self.mappings['closed_order']['value']:
+
+            """
+             futures trading doesn't return trades inside orders, 
+             so update order execution in one run
+             """
+            if self.store.get_type() == 'future':
+                order.execute(ret_ord['datetime'], ret_ord['amount'], ret_ord['price'],
+                                0, 0.0, 0.0,
+                                0, 0.0, 0.0,
+                                0.0, 0.0,
+                                0, 0.0)
+
             pos = self.getposition(order.data, clone=False)
             pos.update(order.size, order.price)
             order.completed()

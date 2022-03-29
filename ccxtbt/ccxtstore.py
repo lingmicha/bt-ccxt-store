@@ -102,6 +102,16 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
         self.currency = currency
         self.retries = retries
         self.debug = debug
+
+        # if binance and futures, set hedge mode
+        # if exchange == 'binance':
+        #     if 'options' in config and 'defaultType' in config['options']:
+        #         if config['options']['defaultType'] == 'future':
+        #             print("Set position side dual to Hedge Mode")
+        #             response = self.exchange.fapiPrivate_post_positionside_dual({
+        #                 'dualSidePosition': True,
+        #             })
+
         balance = self.exchange.fetch_balance() if 'secret' in config else 0
         try:
             if balance == 0 or not balance['free'][currency]:
@@ -135,6 +145,11 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
 
         return granularity
 
+    def get_type(self):
+        if "defaultType" in self.exchange.options:
+            return self.exchange.options['defaultType']
+        return None
+
     def retry(method):
         @wraps(method)
         def retry_method(self, *args, **kwargs):
@@ -144,7 +159,9 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
                 time.sleep(self.exchange.rateLimit / 1000)
                 try:
                     return method(self, *args, **kwargs)
-                except (NetworkError, ExchangeError):
+                except (NetworkError , ExchangeError) as e:
+                    # if exchange error, should return the error msg
+                    print( str(e) )
                     if i == self.retries - 1:
                         raise
 
@@ -161,9 +178,14 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
 
         cash = balance['free'][self.currency]
         value = balance['total'][self.currency]
+        #cash = balance['total'][quote_symbol]
+        #value = balance['total'][base_symbol]
+
         # Fix if None is returned
         self._cash = cash if cash else 0
         self._value = value if value else 0
+
+        #return [self._cash, self._value]
 
     @retry
     def getposition(self):

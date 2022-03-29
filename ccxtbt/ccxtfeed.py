@@ -71,7 +71,9 @@ class CCXTFeed(with_metaclass(MetaCCXTFeed, DataBase)):
         ('fetch_ohlcv_params', {}),
         ('ohlcv_limit', 20),
         ('drop_newest', False),
-        ('debug', True)
+        ('debug', False),
+        # ('base_symbol', ''),
+        # ('quote_symbol','')
     )
 
     _store = CCXTStore
@@ -86,6 +88,16 @@ class CCXTFeed(with_metaclass(MetaCCXTFeed, DataBase)):
         self._data = deque()  # data queue for price data
         self._last_id = ''  # last processed trade id for ohlcv
         self._last_ts = 0  # last processed timestamp for ohlcv
+
+        # # Binance symbol is like BNB/USDT,
+        # # BNB is base_symbol, USDT is quote_symbol or currency
+        # split = self.p.dataname.split('/')
+        # self.p.base_symbol = split[0]
+        # self.p.quote_symbol = split[1]
+        # print(f"dataname: {self.p.dataname} ",
+        #       f"base symbol: {self.p.base_symbol} ",
+        #       f"quote_symbol: {self.p.quote_symbol}")
+
 
     def start(self, ):
         DataBase.start(self)
