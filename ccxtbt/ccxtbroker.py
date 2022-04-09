@@ -163,7 +163,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         # Get cash seems to always be called before get value
         # Therefore it makes sense to add getbalance here.
         # return self.store.getcash(self.currency)
-        self.store.get_balance()
+        # self.store.get_balance()
         self.cash = self.store._cash
         return self.cash
 
@@ -171,7 +171,7 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
     def getvalue(self, datas=None):
         # return self.store.getvalue(self.currency)
-        self.store.get_balance()
+        # self.store.get_balance()
         self.value = self.store._value
         return self.value
 
