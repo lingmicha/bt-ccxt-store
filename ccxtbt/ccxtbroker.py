@@ -40,8 +40,9 @@ class CCXTOrder(OrderBase):
         self.ordtype = self.Buy if ccxt_order['side'] == 'buy' else self.Sell
         self.size = float(ccxt_order['amount'])
 
-        super(CCXTOrder, self).__init__()
 
+        super(CCXTOrder, self).__init__()
+        self.p.data = data # fix params data not defined
 
 class MetaCCXTBroker(BrokerBase.__class__):
     def __init__(cls, name, bases, dct):
