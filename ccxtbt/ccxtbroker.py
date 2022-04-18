@@ -142,6 +142,8 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
         self.use_order_params = False
 
+        self.markets = self.store.load_markets() # no need to frequently update
+
     def get_balance(self):
         self.store.get_balance()
         self.cash = self.store._cash
@@ -173,8 +175,18 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
     def getvalue(self, datas=None):
         # return self.store.getvalue(self.currency)
         # self.store.get_balance()
-        self.value = self.store._value
-        return self.value
+        if datas is None:
+            self.value = self.store._value
+            return self.value
+
+        pos_value = 0.0
+        for data in datas:
+            comminfo = self.getcommissioninfo(data)
+            position = self.getposition(data)
+
+            dvalue = comminfo.getvaluesize(position.size, data.close[0])
+            pos_value += dvalue
+        return pos_value
 
     get_value = getvalue
 
@@ -255,19 +267,31 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
         if amount == 0 or price == 0:
         # do not allow failing orders
             return None
+
+        # format amount & price
+        formatted_amount = self.store.amount_to_precision(data.p.dataname, amount)
+        formatted_price = None
+        if price != None:
+            formatted_price = self.store.price_to_precision(data.p.dataname, price)
+
+        # check limits
+        if not self.check_exchange_limit(data, formatted_amount, formatted_price):
+            # Order would fail sending to exchange
+            return None
+
         order_type = self.order_types.get(exectype) if exectype else 'market'
         created = int(data.datetime.datetime(0).timestamp()*1000)
         # Extract CCXT specific params if passed to the order
         params = params['params'] if 'params' in params else params
         if not self.use_order_params:
             ret_ord = self.store.create_order(symbol=data.p.dataname, order_type=order_type, side=side,
-                                              amount=amount, price=price, params={})
+                                              amount=formatted_amount, price=formatted_price, params={})
         else:
             try:
                 # all params are exchange specific: https://github.com/ccxt/ccxt/wiki/Manual#custom-order-params
                 params['clientOrderId'] = created  # Add timestamp of order creation for backtesting
                 ret_ord = self.store.create_order(symbol=data.p.dataname, order_type=order_type, side=side,
-                                                  amount=amount, price=price, params=params)
+                                                  amount=formatted_amount, price=formatted_price, params=params)
             except:
                 # save some API calls after failure
                 self.use_order_params = False
@@ -374,6 +398,58 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
 
     def get_orders_open(self, safe=False):
         return self.store.fetch_open_orders()
+
+    def check_exchange_limit(self, data, amount, price):
+        '''
+        https://github.com/ccxt/ccxt/wiki/Manual#precision-and-limits
+        check exchange limit met before issue an order
+
+        Order amount >= limits['amount']['min']
+        Order amount <= limits['amount']['max']
+        Order price >= limits['price']['min']
+        Order price <= limits['price']['max']
+        Order cost (amount * price) >= limits['cost']['min']
+        Order cost (amount * price) <= limits['cost']['max']
+        Precision of amount must be <= precision['amount']
+        Precision of price must be <= precision['price']
+        '''
+        symbol = data.p.dataname
+        limits = self.markets[symbol]['limits']
+        if limits['amount']['min'] != None and amount < limits['amount']['min']:
+            print(f"{symbol} ORDER NOT SENT: AMOUNT({amount}) BELOW EXCHANGE LIMIT:{limits['amount']['min']}")
+            return False
+
+        if limits['amount']['max'] != None and amount > limits['amount']['max']:
+            print(f"{symbol} ORDER NOT SENT: AMOUNT({amount}) EXCEED EXCHANGE LIMIT:{limits['amount']['max']}")
+            return False
+
+        if price != None:
+            if limits['price']['min'] != None and price < limits['price']['min']:
+                print(f"{symbol} ORDER NOT SENT: PRICE({price}) BELOW EXCHANGE LIMIT:{limits['price']['min']}")
+                return False
+            if limits['price']['max'] != None and price > limits['price']['max']:
+                print(f"{symbol} ORDER NOT SENT: PRICE({price}) EXCEED EXCHANGE LIMIT:{limits['price']['max']}")
+                return False
+
+        cost = abs(amount) * data.close[0]
+        if limits['cost']['min'] != None and cost < limits['cost']['min']:
+            print(f"{symbol} ORDER NOT SENT: VALUE({cost}) BELOW EXCHANGE LIMIT:{limits['cost']['min']}")
+            return False
+        if limits['cost']['max'] != None and cost > limits['cost']['max']:
+            print(f"{symbol} ORDER NOT SENT: VALUE({cost}) EXCEED EXCHANGE LIMIT:{limits['cost']['max']}")
+            return False
+
+        value = self.get_value()
+        if cost >= value:
+            print(f"{symbol} ORDER NOT SENT: VALUE({cost} EXCEED THE TOTAL PORTFOLIO VALUE({value}))")
+            return False
+
+        cash = self.get_cash()
+        if cost >= cash:
+            print(f"{symbol} ORDER NOT SENT: VALUE({cost} EXCEED THE REMAINING CASH({cash}))")
+            return False
+
+        return True
 
     def private_end_point(self, type, endpoint, params, prefix = ""):
         '''

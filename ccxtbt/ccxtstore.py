@@ -224,6 +224,18 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
             return self.exchange.fetchOpenOrders(symbol)
 
     @retry
+    def load_markets(self):
+        return self.exchange.load_markets()
+
+    # must called after load_markets
+    def amount_to_precision(self, symbol, amount):
+        return float(self.exchange.amount_to_precision(symbol, amount))
+
+    # must called after load_markets
+    def price_to_precision(self, symbol, price):
+        return float(self.exchange.price_to_precision(symbol, price))
+
+    @retry
     def private_end_point(self, type, endpoint, params):
         '''
         Open method to allow calls to be made to any private end point.
