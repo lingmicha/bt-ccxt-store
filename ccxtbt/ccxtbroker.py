@@ -199,6 +199,17 @@ class CCXTBroker(with_metaclass(MetaCCXTBroker, BrokerBase)):
     def notify(self, order):
         self.notifs.put(order)
 
+    def sync_exchange_positions(self, datas=None):
+
+        exchange_positions = self.store.getposition()
+
+        for i, data in enumerate(datas):
+            pos = self.positions[data._dataname]
+            if data._dataname in exchange_positions:
+                size = exchange_positions[data._dataname]['size']
+                price = exchange_positions[data._dataname]['price']
+                pos.set( size, price )
+
     def getposition(self, data, clone=True):
         # return self.o.getposition(data._dataname, clone=clone)
         pos = self.positions[data._dataname]

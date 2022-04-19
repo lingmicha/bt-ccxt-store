@@ -189,7 +189,13 @@ class CCXTStore(with_metaclass(MetaSingleton, object)):
 
     @retry
     def getposition(self):
-        return self._value
+        positions = self.exchange.fetch_positions()
+        positions = { p['symbol'] :
+                      { 'size' : float(p['info']['positionAmt']),
+                        'price'  : float(p['info']['entryPrice'])
+                      }
+                    for p in positions }
+        return positions
         # return self.getvalue(currency)
 
     @retry
